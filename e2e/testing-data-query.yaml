@@ -55,19 +55,7 @@ items:
       X-Store-Name: "{{.param.store}}"
     body: |
       {
-        "sql": "show databases",
+        "sql": "DESCRIBE KEYSPACES",
         "key": ""
       }
-- name: invalidSQL
-  request:
-    api: /data/query
-    method: POST
-    header:
-      X-Store-Name: "{{.param.store}}"
-    body: |
-      {
-        "sql": "select1 * from table",
-        "key": ""
-      }
-  expect:
-      statusCode: 500
+

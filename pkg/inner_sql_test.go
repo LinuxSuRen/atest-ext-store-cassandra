@@ -19,7 +19,7 @@ package pkg_test
 import (
 	"testing"
 
-	"github.com/linuxsuren/atest-ext-store-iotdb/pkg"
+	"github.com/linuxsuren/atest-ext-store-cassandra/pkg"
 	"github.com/stretchr/testify/assert"
 )
 

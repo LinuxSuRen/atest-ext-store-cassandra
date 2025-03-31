@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/gocql/gocql"
@@ -41,22 +42,24 @@ func NewRemoteServer(defaultHistoryLimit int) (s remote.LoaderServer) {
 	return
 }
 
-func (s *dbserver) getClientWithDatabase(ctx context.Context) (dbQuery DataQuery, err error) {
+func (s *dbserver) getClientWithDatabase(ctx context.Context, keySpace string) (dbQuery DataQuery, err error) {
 	store := remote.GetStoreFromContext(ctx)
 	if store == nil {
 		err = errors.New("no connect to database")
 	} else {
-		port := "6667"
+		port := 9042
 		host := store.URL
 		if strings.Contains(store.URL, ":") {
 			obj := strings.Split(store.URL, ":")
 			if len(obj) > 1 {
-				port = obj[1]
 				host = obj[0]
+				port, _ = strconv.Atoi(obj[1])
 			}
 		}
 
-		cluster := gocql.NewCluster(store.URL)
+		cluster := gocql.NewCluster(host)
+		cluster.Port = port
+		cluster.Keyspace = keySpace
 
 		var session *gocql.Session
 		if session, err = cluster.CreateSession(); err != nil {

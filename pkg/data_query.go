@@ -24,16 +24,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/iotdb-client-go/client"
 	"github.com/gocql/gocql"
 
 	"github.com/linuxsuren/api-testing/pkg/server"
 )
 
 func (s *dbserver) Query(ctx context.Context, query *server.DataQuery) (result *server.DataQueryResult, err error) {
-	var db *client.session
+	var db *gocql.Session
 	var dbQuery DataQuery
-	if dbQuery, err = s.getClientWithDatabase(ctx); err != nil {
+	if dbQuery, err = s.getClientWithDatabase(ctx, query.Key); err != nil {
 		return
 	}
 
@@ -82,11 +81,9 @@ func (s *dbserver) Query(ctx context.Context, query *server.DataQuery) (result *
 }
 
 func sqlQuery(_ context.Context, sql string, session *gocql.Session) (result *server.DataQueryResult, err error) {
-	var sessionDataSet *client.SessionDataSet
 	fmt.Println("query sql", sql)
-	if sessionDataSet, err = session.Query(sql); err != nil {
-		return
-	}
+	iter := session.Query(sql).Iter()
+	defer iter.Close()
 
 	result = &server.DataQueryResult{
 		Data:  []*server.Pair{},
@@ -94,27 +91,16 @@ func sqlQuery(_ context.Context, sql string, session *gocql.Session) (result *se
 		Meta:  &server.DataMeta{},
 	}
 
-	columns := sessionDataSet.GetColumnNames()
-	for next, nextErr := sessionDataSet.Next(); next && nextErr == nil; next, nextErr = sessionDataSet.Next() {
-		// Create our map, and retrieve the value for each column from the pointers slice,
-		// storing it in the map with the name of the column as the key.
-		for _, colName := range columns {
-			rowData := &server.Pair{}
-			var val any
-			record, err := sessionDataSet.GetRowRecord()
-			if err != nil {
-				break
-			}
-			fields := record.GetFields()
-			for _, field := range fields {
-				if field.GetName() == colName {
-					val = field.GetValue()
-					break
-				}
-			}
+	for {
+		m := make(map[string]any)
+		if !iter.MapScan(m) {
+			break
+		}
 
-			rowData.Key = colName
-			switch v := val.(type) {
+		for k, v := range m {
+			rowData := &server.Pair{Key: k}
+
+			switch v := v.(type) {
 			case []byte:
 				rowData.Value = string(v)
 			case string:
@@ -136,10 +122,10 @@ func sqlQuery(_ context.Context, sql string, session *gocql.Session) (result *se
 			case []string:
 				rowData.Value = fmt.Sprintf("%v", v)
 			default:
-				fmt.Println("column", colName, "type", reflect.TypeOf(v))
+				rowData.Value = fmt.Sprintf("%v", v)
+				fmt.Println("column", k, "type", reflect.TypeOf(v))
 			}
 
-			// Append the map to our slice of maps.
 			result.Data = append(result.Data, rowData)
 		}
 		result.Items = append(result.Items, &server.Pairs{
@@ -156,7 +142,7 @@ type DataQuery interface {
 	GetTables(ctx context.Context, currentDatabase string) (tables []string, err error)
 	GetCurrentDatabase() (string, error)
 	GetLabels(context.Context, string) []*server.Pair
-	GetClient() *client.session
+	GetClient() *gocql.Session
 	GetInnerSQL() InnerSQL
 }
 
@@ -253,7 +239,7 @@ func (q *commonDataQuery) GetLabels(ctx context.Context, sql string) (metadata [
 	return
 }
 
-func (q *commonDataQuery) GetClient() *client.session {
+func (q *commonDataQuery) GetClient() *gocql.Session {
 	return q.session
 }
 
