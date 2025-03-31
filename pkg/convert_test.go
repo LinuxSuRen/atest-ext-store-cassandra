@@ -21,7 +21,7 @@ import (
 
 	"github.com/linuxsuren/api-testing/pkg/server"
 	"github.com/linuxsuren/api-testing/pkg/testing/remote"
-	"github.com/linuxsuren/atest-ext-store-iotdb/pkg"
+	"github.com/linuxsuren/atest-ext-store-cassandra/pkg"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

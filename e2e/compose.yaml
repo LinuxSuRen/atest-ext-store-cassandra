@@ -25,17 +25,16 @@ services:
         - GOPROXY=${GOPROXY}
 
   cassandra:
-    image: ghcr.io/linuxsuren/apache/cassandra:1.3.2-standalone
+    image: ghcr.io/linuxsuren/library/cassandra:5.0.3
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: atest
+      CASSANDRA_USER: root
+      CASSANDRA_PASSWORD: root
     healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/6667"]
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9042"]
       interval: 3s
       timeout: 30s
-      retries: 10
+      retries: 30
     ports:
-      - 6667
+      - 9042
 volumes:
   cache:

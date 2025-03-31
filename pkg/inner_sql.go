@@ -16,7 +16,10 @@ limitations under the License.
 
 package pkg
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type InnerSQL interface {
 	ToNativeSQL(query string) string
@@ -25,6 +28,7 @@ type InnerSQL interface {
 const (
 	InnerSelectTable_      = "@selectTable_"
 	InnerSelectTableLimit_ = "@selectTableLImit100_"
+	InnerDescribeTable_    = "@describeTable_"
 	InnerShowDatabases     = "@showDatabases"
 	InnerShowTables        = "@showTables"
 	InnerCurrentDB         = "@currentDB"
@@ -37,7 +41,7 @@ func GetInnerSQL(dialect string) InnerSQL {
 	case Dialectorcassandra:
 		return &cassandrandraDialect{}
 	default:
-		return &mysqlDialect{}
+		return &cassandrandraDialect{}
 	}
 }
 
@@ -87,11 +91,21 @@ func (p *cassandrandraDialect) ToNativeSQL(query string) (sql string) {
 	} else if strings.HasPrefix(query, InnerSelectTableLimit_) {
 		sql = `SELECT * FROM ` + strings.ReplaceAll(query, InnerSelectTableLimit_, "") + ` LIMIT 100`
 	} else if query == InnerShowDatabases {
-		sql = "SHOW DATABASES"
+		sql = "DESCRIBE KEYSPACES"
 	} else if query == InnerShowTables {
-		sql = "show child paths %s"
+		sql = "SELECT * FROM system_schema.tables WHERE keyspace_name = '%s'"
 	} else if query == InnerCurrentDB {
 		sql = "SELECT CURRENT_STORAGE_GROUP"
+	} else if strings.HasPrefix(query, InnerDescribeTable_) {
+		keyspaceAndtableName := strings.ReplaceAll(query, InnerDescribeTable_, "")
+		items := strings.Split(keyspaceAndtableName, ":")
+		fmt.Println(query, items)
+		if len(items) != 2 {
+			sql = query
+			return
+		}
+		sql = fmt.Sprintf("SELECT * FROM system_schema.columns WHERE keyspace_name = '%s' AND table_name = '%s'",
+			items[0], items[1])
 	} else {
 		sql = query
 	}
