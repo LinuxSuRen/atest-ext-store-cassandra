@@ -58,4 +58,19 @@ items:
         "sql": "DESCRIBE KEYSPACES",
         "key": ""
       }
-
+  expect:
+    bodyFieldsExpect:
+      meta.labels.version: 5.0.3
+- name: invalid-sql
+  request:
+    api: /data/query
+    method: POST
+    header:
+      X-Store-Name: "{{.param.store}}"
+    body: |
+      {
+        "sql": "DESC KEYSPACES",
+        "key": ""
+      }
+  expect:
+    statusCode: 500
