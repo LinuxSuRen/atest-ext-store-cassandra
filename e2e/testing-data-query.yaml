@@ -59,8 +59,8 @@ items:
         "key": ""
       }
   expect:
-    bodyFieldsExpect:
-      meta.labels.version: 5.0.3
+    verify:
+      - any(data.meta.labels, {.version == "5.0.3"})
 - name: invalid-sql
   request:
     api: /data/query
