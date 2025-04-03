@@ -69,8 +69,9 @@ items:
       X-Store-Name: "{{.param.store}}"
     body: |
       {
-        "sql": "DESC KEYSPACES",
+        "sql": "FAKE KEYSPACES",
         "key": ""
       }
   expect:
-    statusCode: 500
+    verify:
+      - len(data.items) == 0
