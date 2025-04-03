@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -44,32 +45,50 @@ func (s *dbserver) Query(ctx context.Context, query *server.DataQuery) (result *
 		Meta:  &server.DataMeta{},
 	}
 
-	// query database and tables
-	if result.Meta.Databases, err = dbQuery.GetDatabases(ctx); err != nil {
-		log.Printf("failed to query databases: %v\n", err)
-	}
+	wg := sync.WaitGroup{}
 
-	if result.Meta.CurrentDatabase = query.Key; query.Key == "" {
-		if result.Meta.CurrentDatabase, err = dbQuery.GetCurrentDatabase(); err != nil {
-			log.Printf("failed to query current database: %v\n", err)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// query database and tables
+		if result.Meta.Databases, err = dbQuery.GetDatabases(ctx); err != nil {
+			log.Printf("failed to query databases: %v\n", err)
 		}
-	}
+	}()
 
-	if result.Meta.Tables, err = dbQuery.GetTables(ctx, result.Meta.CurrentDatabase); err != nil {
-		log.Printf("failed to query tables: %v\n", err)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
+		if result.Meta.CurrentDatabase = query.Key; query.Key == "" {
+			if result.Meta.CurrentDatabase, err = dbQuery.GetCurrentDatabase(); err != nil {
+				log.Printf("failed to query current database: %v\n", err)
+			}
+		}
+
+		if result.Meta.Tables, err = dbQuery.GetTables(ctx, result.Meta.CurrentDatabase); err != nil {
+			log.Printf("failed to query tables: %v\n", err)
+		}
+	}()
+
+	defer wg.Wait()
 	// query data
 	if query.Sql == "" {
 		return
 	}
 
 	query.Sql = dbQuery.GetInnerSQL().ToNativeSQL(query.Sql)
-	result.Meta.Labels = dbQuery.GetLabels(ctx, query.Sql)
-	result.Meta.Labels = append(result.Meta.Labels, &server.Pair{
-		Key:   "_native_sql",
-		Value: query.Sql,
-	})
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		result.Meta.Labels = dbQuery.GetLabels(ctx, query.Sql)
+		result.Meta.Labels = append(result.Meta.Labels, &server.Pair{
+			Key:   "_native_sql",
+			Value: query.Sql,
+		})
+	}()
 
 	var dataResult *server.DataQueryResult
 	now := time.Now()
@@ -222,15 +241,24 @@ func (q *commonDataQuery) GetCurrentDatabase() (current string, err error) {
 
 func (q *commonDataQuery) GetLabels(ctx context.Context, sql string) (metadata []*server.Pair) {
 	metadata = make([]*server.Pair, 0)
-	if databaseResult, err := sqlQuery(ctx, fmt.Sprintf("explain %s", sql), q.session); err == nil {
-		if len(databaseResult.Items) != 1 {
-			return
-		}
+	if databaseResult, err := sqlQuery(ctx, fmt.Sprintf("explain %s", sql), q.session); err == nil && len(databaseResult.Items) == 1 {
 		for _, data := range databaseResult.Items[0].Data {
 			switch data.Key {
 			case "type":
 				metadata = append(metadata, &server.Pair{
 					Key:   "sql_type",
+					Value: data.Value,
+				})
+			}
+		}
+	}
+
+	if databaseResult, err := sqlQuery(ctx, "SELECT release_version FROM system.local", q.session); err == nil && len(databaseResult.Items) >= 1 {
+		for _, data := range databaseResult.Items[0].Data {
+			switch data.Key {
+			case "release_version":
+				metadata = append(metadata, &server.Pair{
+					Key:   "version",
 					Value: data.Value,
 				})
 			}

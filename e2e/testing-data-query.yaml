@@ -58,4 +58,20 @@ items:
         "sql": "DESCRIBE KEYSPACES",
         "key": ""
       }
-
+  expect:
+    verify:
+      - any(data.meta.labels, {.key == 'version' and .value == "5.0.3"})
+- name: invalid-sql
+  request:
+    api: /data/query
+    method: POST
+    header:
+      X-Store-Name: "{{.param.store}}"
+    body: |
+      {
+        "sql": "FAKE KEYSPACES",
+        "key": ""
+      }
+  expect:
+    verify:
+      - len(data.items) == 0
